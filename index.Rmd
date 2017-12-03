@@ -6,25 +6,65 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 ```
 
-## R Markdown
+## Summary
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Using random forest prediction, data on motion type collected using accelerometers for 6 participants doing different types of lifts can be used to predict the type of lift 99% of the time.  
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+*Cleanup and partitioning*
 
-```{r cars}
-summary(cars)
+The main dataset is read in, partitioned into training and test sets, and cleaned to account for an astonishing percentage of missing values.  After removing identifying values and columns with more then 95% of their values missing, it goes from 160 variables to 53.
+
+```{r}
+fileTR<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+fileTST<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+library(caret)
+
+data_tr<-read.csv(fileTR, na.strings=c("NA","#DIV/01",""))
+data_tst<-read.csv(fileTST, na.strings=c("NA","#DIV/01",""))
+data_tr$X<-NULL
+data_tr$raw_timestamp_part_1<-NULL
+data_tr$raw_timestamp_part_2<-NULL
+data_tr$cvtd_timestamp<-NULL
+data_tr$new_window<-NULL
+data_tr$num_window<-NULL
+data_tr$user_name<-NULL
+missing_data<-apply(data_tr, 2, function(x) sum(is.na(x)))/nrow(data_tr)
+data_tr<-data_tr[!(missing_data>0.95)]
+
+set.seed(2525)
+train<-createDataPartition(y=data_tr$classe, p=.6, list=FALSE)
+myTrain<-data_tr[train,]
+myTest<-data_tr[-train,]
 ```
 
-## Including Plots
+*Model Creation*
 
-You can also embed plots, for example:
+The model, generated on the previously partitioned training set.  This step takes a significant amount of time, but is not outside the range of a typical consumer machine.
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+mod_rf <- train(classe ~ ., data = myTrain, method = "rf")
+cm_rf<-confusionMatrix(mod_rf)
+cm_rf
+``` 
+
+*Model Testing*
+
+Using the fully labeled testing dataset, the model is tested and a new confusion matrix generated to check its accuracy.
+```{r}
+pred_rf <- predict(mod_rf, myTest)
+cm_rftst<-confusionMatrix(pred_rf, myTest$classe)
+cm_rftst
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+*Final Tree*
+```{r}
+library(rattle)
+fancyRpartPlot(mod_rf$finalModel)
+```
+
+*Discussion*
+With the exception of the amount of time required to actually train the model, which may contribute to problems in scalability, this analysis yielded outstanding results, correctly predicting all 20 of the rows in the unlabeled test set.  Comparing the results with LDA and GBM analyses showed random forest to have the highest accuracy.  LDA in particular had a faster run time, but its 70% accuracy was far inferior.
