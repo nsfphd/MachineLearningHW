@@ -60,10 +60,9 @@ cm_rftst<-confusionMatrix(pred_rf, myTest$classe)
 cm_rftst
 ```
 
-*Final Tree*
+*Variables of Interest*
 ```{r}
-library(rattle)
-fancyRpartPlot(mod_rf$finalModel)
+varImp(mod_rf)
 ```
 
 *Discussion*
